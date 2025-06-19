@@ -1,7 +1,11 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Online Shooter Room</title>
+  <title>Shooter Online</title>
+  <style>
+    #game { display:none; }
+    canvas { background: #222; display:block; margin:0 auto; }
+  </style>
 </head>
 <body>
   <div id="login">
@@ -9,33 +13,60 @@
     <input id="room" placeholder="เลขห้อง" />
     <button onclick="joinRoom()">เข้าห้อง</button>
   </div>
-  <div id="game" style="display:none;">
-    <div id="messages"></div>
-    <input id="msg" placeholder="พิมพ์ข้อความ..." />
-    <button onclick="sendMsg()">ส่ง</button>
+  <div id="game">
+    <canvas id="canvas" width="600" height="400"></canvas>
+    <div>กดลูกศรเพื่อเดิน, Spacebar เพื่อยิง</div>
   </div>
   <script src="/socket.io/socket.io.js"></script>
   <script>
     const socket = io();
+    let myId = null;
+    let players = {};
+
     function joinRoom() {
       const username = document.getElementById('username').value;
       const room = document.getElementById('room').value;
       socket.emit('joinRoom', { username, room });
-    }
-    socket.on('joined', ({ room }) => {
       document.getElementById('login').style.display = 'none';
       document.getElementById('game').style.display = 'block';
-    });
-    socket.on('message', msg => {
-      const div = document.createElement('div');
-      div.innerText = msg;
-      document.getElementById('messages').appendChild(div);
-    });
-    function sendMsg() {
-      const msg = document.getElementById('msg').value;
-      socket.emit('sendMessage', msg);
-      document.getElementById('msg').value = '';
     }
+
+    socket.on('players', data => {
+      players = data;
+      if (!myId) myId = socket.id;
+    });
+
+    // วาดเกม
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    function draw() {
+      ctx.clearRect(0,0,600,400);
+      Object.entries(players).forEach(([id, p]) => {
+        ctx.fillStyle = p.alive ? (id === socket.id ? 'lime' : 'cyan') : 'gray';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 15, 0, Math.PI*2);
+        ctx.fill();
+        ctx.fillStyle = 'white';
+        ctx.font = '12px sans-serif';
+        ctx.fillText(p.username, p.x-15, p.y-20);
+      });
+      requestAnimationFrame(draw);
+    }
+    draw();
+
+    // ควบคุม
+    document.addEventListener('keydown', e => {
+      if (!players[socket.id] || !players[socket.id].alive) return;
+      if (e.key === 'ArrowLeft') socket.emit('move', 'left');
+      if (e.key === 'ArrowRight') socket.emit('move', 'right');
+      if (e.key === 'ArrowUp') socket.emit('move', 'up');
+      if (e.key === 'ArrowDown') socket.emit('move', 'down');
+      if (e.code === 'Space') {
+        // ยิงไปข้างหน้าตามตำแหน่งตัวเอง (ตัวอย่าง: ยิงตรงหน้า)
+        const me = players[socket.id];
+        socket.emit('shoot', { x: me.x, y: me.y - 20 });
+      }
+    });
   </script>
 </body>
 </html>

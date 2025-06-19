@@ -7,163 +7,10 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-app.use(express.static('public')); // ให้ไฟล์ index.html อยู่ในโฟลเดอร์ public
+app.use(express.static('public'));
 
-// Game state
-const gameState = {
-  players: {},
-  bullets: [],
-  powerUps: []
-};
+let rooms = {};
 
-const BULLET_SPEED = 8;
-const BULLET_DAMAGE = 20;
-const MAX_BULLETS_PER_PLAYER = 10;
-
-// Player class
-class Player {
-  constructor(id, x, y) {
-    this.id = id;
-    this.x = x;
-    this.y = y;
-    this.health = 100;
-    this.score = 0;
-    this.size = 15;
-    this.color = this.getRandomColor();
-    this.lastShot = 0;
-    this.kills = 0;
-    this.deaths = 0;
-  }
-
-  getRandomColor() {
-    const colors = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff', '#ffa500', '#800080'];
-    return colors[Math.floor(Math.random() * colors.length)];
-  }
-
-  takeDamage(damage) {
-    this.health -= damage;
-    if (this.health <= 0) {
-      this.health = 0;
-      this.deaths++;
-      return true; // Player died
-    }
-    return false;
-  }
-
-  respawn() {
-    this.health = 100;
-    this.x = Math.random() * 760 + 20;
-    this.y = Math.random() * 560 + 20;
-  }
-}
-
-// Bullet class
-class Bullet {
-  constructor(x, y, angle, playerId) {
-    this.x = x;
-    this.y = y;
-    this.vx = Math.cos(angle) * BULLET_SPEED;
-    this.vy = Math.sin(angle) * BULLET_SPEED;
-    this.playerId = playerId;
-    this.id = Math.random().toString(36).substr(2, 9);
-  }
-
-  update() {
-    this.x += this.vx;
-    this.y += this.vy;
-    
-    // Remove bullet if out of bounds
-    return this.x < 0 || this.x > 800 || this.y < 0 || this.y > 600;
-  }
-}
-
-// Spawn power-ups occasionally
-function spawnPowerUp() {
-  if (Math.random() < 0.1) { // 10% chance every update
-    gameState.powerUps.push({
-      id: Math.random().toString(36).substr(2, 9),
-      x: Math.random() * 760 + 20,
-      y: Math.random() * 560 + 20,
-      type: Math.random() < 0.5 ? 'health' : 'damage',
-      spawned: Date.now()
-    });
-  }
-}
-
-// Game loop
-function gameLoop() {
-  // Update bullets
-  for (let i = gameState.bullets.length - 1; i >= 0; i--) {
-    const bullet = gameState.bullets[i];
-    
-    if (bullet.update()) {
-      gameState.bullets.splice(i, 1);
-      continue;
-    }
-
-    // Check collision with players
-    for (const playerId in gameState.players) {
-      const player = gameState.players[playerId];
-      
-      if (player.id === bullet.playerId || player.health <= 0) continue;
-
-      const distance = Math.sqrt(
-        Math.pow(player.x - bullet.x, 2) + Math.pow(player.y - bullet.y, 2)
-      );
-
-      if (distance < player.size + 5) {
-        // Hit!
-        const died = player.takeDamage(BULLET_DAMAGE);
-        gameState.bullets.splice(i, 1);
-
-        if (died) {
-          // Award kill to shooter
-          if (gameState.players[bullet.playerId]) {
-            gameState.players[bullet.playerId].kills++;
-            gameState.players[bullet.playerId].score += 100;
-          }
-          
-          // Respawn player after 2 seconds
-          setTimeout(() => {
-            if (gameState.players[playerId]) {
-              player.respawn();
-            }
-          }, 2000);
-        }
-
-        io.emit('playerHit', {
-          playerId: playerId,
-          shooterId: bullet.playerId,
-          health: player.health,
-          died: died
-        });
-        break;
-      }
-    }
-  }
-
-  // Remove old power-ups (after 10 seconds)
-  gameState.powerUps = gameState.powerUps.filter(powerUp => 
-    Date.now() - powerUp.spawned < 10000
-  );
-
-  // Spawn power-ups
-  spawnPowerUp();
-
-  // Send game state to all clients
-  io.emit('gameUpdate', {
-    players: gameState.players,
-    bullets: gameState.bullets.map(b => ({
-      x: b.x,
-      y: b.y,
-      id: b.id,
-      playerId: b.playerId
-    })),
-    powerUps: gameState.powerUps
-  });
-}
-
-// Socket events
 io.on('connection', (socket) => {
   console.log(`Player connected: ${socket.id}`);
 
@@ -179,6 +26,25 @@ io.on('connection', (socket) => {
   // Send initial game state
   socket.emit('gameState', gameState);
   socket.broadcast.emit('playerJoined', player);
+
+  // Join room
+  socket.on('joinRoom', ({ username, room }) => {
+    socket.join(room);
+    socket.username = username;
+    socket.room = room;
+
+    if (!rooms[room]) rooms[room] = {};
+    // สุ่มตำแหน่งเกิด
+    rooms[room][socket.id] = {
+      x: Math.random() * 400 + 50,
+      y: Math.random() * 300 + 50,
+      username,
+      alive: true
+    };
+
+    // ส่งข้อมูลผู้เล่นทั้งหมดในห้องให้ทุกคน
+    io.to(room).emit('players', rooms[room]);
+  });
 
   // Player movement
   socket.on('playerMove', (data) => {
@@ -223,20 +89,20 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Join room
-  socket.on('joinRoom', ({ username, room }) => {
-    socket.join(room);
-    socket.username = username;
-    socket.room = room;
-    // แจ้งผู้เล่นในห้อง
-    socket.to(room).emit('message', `${username} joined room ${room}`);
-    // ส่งยืนยันกลับไปหาไคลเอนต์
-    socket.emit('joined', { room });
-  });
-
-  // Send message
-  socket.on('sendMessage', (msg) => {
-    io.to(socket.room).emit('message', `${socket.username}: ${msg}`);
+  socket.on('shoot', ({ x, y }) => {
+    // ตรวจสอบโดนผู้เล่นอื่นไหม
+    const shooter = rooms[socket.room]?.[socket.id];
+    if (!shooter || !shooter.alive) return;
+    Object.entries(rooms[socket.room]).forEach(([id, player]) => {
+      if (id !== socket.id && player.alive) {
+        const dx = player.x - x;
+        const dy = player.y - y;
+        if (Math.sqrt(dx * dx + dy * dy) < 20) {
+          player.alive = false;
+        }
+      }
+    });
+    io.to(socket.room).emit('players', rooms[socket.room]);
   });
 
   // Player disconnect
