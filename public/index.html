@@ -1,16 +1,53 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <title>Shooter Online</title>
   <style>
-    body { background: #181818; color: #fff; font-family: sans-serif; }
-    #game { display:none; text-align: center; }
-    canvas { background: #222; display:block; margin:20px auto; border-radius: 10px; }
-    #login { text-align: center; margin-top: 100px; }
-    input, button { padding: 8px; margin: 5px; border-radius: 5px; border: none; }
-    button { background: #4caf50; color: #fff; cursor: pointer; }
+    body {
+      background: #181818;
+      color: #fff;
+      font-family: sans-serif;
+    }
+
+    #game {
+      display: none;
+      text-align: center;
+    }
+
+    canvas {
+      background: #222;
+      display: block;
+      margin: 20px auto;
+      border-radius: 10px;
+    }
+
+    #login {
+      text-align: center;
+      margin-top: 100px;
+    }
+
+    input,
+    button {
+      padding: 8px;
+      margin: 5px;
+      border-radius: 5px;
+      border: none;
+    }
+
+    button {
+      background: #4caf50;
+      color: #fff;
+      cursor: pointer;
+    }
+
+    /* Simple CSS Debug */
+    * {
+      outline: 1px solid rgba(255, 0, 0, 0.3) !important;
+    }
   </style>
 </head>
+
 <body>
   <div id="login">
     <h2>เข้าสู่เกมยิงออนไลน์</h2>
@@ -69,29 +106,33 @@
       Object.entries(players).forEach(([id, p]) => {
         ctx.save();
         ctx.globalAlpha = p.alive ? 1 : 0.3;
-
-        // วาด hitbox ขอบแดง (รัศมี 25)
+        
+        ctx.strokeStyle = id === myId ? '#ff00ff' : '#00ffff';
+        ctx.lineWidth = 3;
+        ctx.setLineDash([5, 5]);
         ctx.beginPath();
-        ctx.arc(p.x, p.y, 25, 0, Math.PI * 2);
-        ctx.strokeStyle = 'red';
-        ctx.lineWidth = 2;
+        ctx.arc(p.x, p.y, 20, 0, Math.PI * 2);
         ctx.stroke();
-
-        // วาดตัวผู้เล่น
+        ctx.setLineDash([]);
+        
+        ctx.fillStyle = id === myId ? '#4caf50' : '#03a9f4';
         ctx.beginPath();
         ctx.arc(p.x, p.y, 15, 0, Math.PI * 2);
-        ctx.fillStyle = id === myId ? '#4caf50' : '#03a9f4';
         ctx.fill();
         ctx.strokeStyle = '#fff';
         ctx.lineWidth = 2;
         ctx.stroke();
-
-        // ชื่อผู้เล่น
+        
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.fillRect(p.x - 30, p.y - 35, 60, 15);
+        ctx.strokeStyle = id === myId ? '#ff00ff' : '#00ffff';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(p.x - 30, p.y - 35, 60, 15);
+        
         ctx.fillStyle = '#fff';
         ctx.font = '13px sans-serif';
         ctx.textAlign = 'center';
         ctx.fillText(p.username, p.x, p.y - 22);
-
         ctx.restore();
       });
       requestAnimationFrame(draw);
@@ -113,4 +154,5 @@
     });
   </script>
 </body>
+
 </html>
