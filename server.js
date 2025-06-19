@@ -2,18 +2,12 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
-const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: "*",
-    methods: ["GET", "POST"]
-  }
-});
+const io = new Server(server);
 
-app.use(express.static('public'));
+app.use(express.static('public')); // ให้ไฟล์ index.html อยู่ในโฟลเดอร์ public
 
 // Game state
 const gameState = {
@@ -229,6 +223,22 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Join room
+  socket.on('joinRoom', ({ username, room }) => {
+    socket.join(room);
+    socket.username = username;
+    socket.room = room;
+    // แจ้งผู้เล่นในห้อง
+    socket.to(room).emit('message', `${username} joined room ${room}`);
+    // ส่งยืนยันกลับไปหาไคลเอนต์
+    socket.emit('joined', { room });
+  });
+
+  // Send message
+  socket.on('sendMessage', (msg) => {
+    io.to(socket.room).emit('message', `${socket.username}: ${msg}`);
+  });
+
   // Player disconnect
   socket.on('disconnect', () => {
     console.log(`Player disconnected: ${socket.id}`);
@@ -236,6 +246,10 @@ io.on('connection', (socket) => {
     
     // Remove player's bullets
     gameState.bullets = gameState.bullets.filter(b => b.playerId !== socket.id);
+    
+    if (socket.room && socket.username) {
+      socket.to(socket.room).emit('message', `${socket.username} left the room`);
+    }
     
     socket.broadcast.emit('playerLeft', socket.id);
   });
@@ -247,4 +261,5 @@ setInterval(gameLoop, 1000 / 60); // 60 FPS
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+
 });
