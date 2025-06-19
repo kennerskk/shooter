@@ -3,38 +3,63 @@
 <head>
   <title>Shooter Online</title>
   <style>
-    #game { display:none; }
-    canvas { background: #222; display:block; margin:0 auto; }
+    body { background: #181818; color: #fff; font-family: sans-serif; }
+    #game { display:none; text-align: center; }
+    canvas { background: #222; display:block; margin:20px auto; border-radius: 10px; }
+    #login { text-align: center; margin-top: 100px; }
+    input, button { padding: 8px; margin: 5px; border-radius: 5px; border: none; }
+    button { background: #4caf50; color: #fff; cursor: pointer; }
   </style>
 </head>
 <body>
   <div id="login">
-    <input id="username" placeholder="ชื่อของคุณ" />
-    <input id="room" placeholder="เลขห้อง" />
+    <h2>เข้าสู่เกมยิงออนไลน์</h2>
+    <input id="username" placeholder="ชื่อของคุณ" autocomplete="off" />
+    <input id="room" placeholder="เลขห้อง" autocomplete="off" />
     <button onclick="joinRoom()">เข้าห้อง</button>
   </div>
   <div id="game">
+    <h3 id="roomInfo"></h3>
     <canvas id="canvas" width="600" height="400"></canvas>
     <div>กดลูกศรเพื่อเดิน, Spacebar เพื่อยิง</div>
+    <div id="status"></div>
+    <button onclick="location.reload()">ออกจากห้อง</button>
   </div>
   <script src="/socket.io/socket.io.js"></script>
   <script>
     const socket = io();
-    let myId = null;
     let players = {};
+    let myId = null;
+    let myRoom = '';
+    let myName = '';
 
     function joinRoom() {
-      const username = document.getElementById('username').value;
-      const room = document.getElementById('room').value;
-      socket.emit('joinRoom', { username, room });
+      myName = document.getElementById('username').value.trim();
+      myRoom = document.getElementById('room').value.trim();
+      if (!myName || !myRoom) {
+        alert('กรุณากรอกชื่อและเลขห้อง');
+        return;
+      }
+      socket.emit('joinRoom', { username: myName, room: myRoom });
       document.getElementById('login').style.display = 'none';
       document.getElementById('game').style.display = 'block';
+      document.getElementById('roomInfo').innerText = `ห้อง: ${myRoom}`;
     }
 
     socket.on('players', data => {
       players = data;
-      if (!myId) myId = socket.id;
+      myId = socket.id;
+      updateStatus();
     });
+
+    function updateStatus() {
+      if (!players[myId]) return;
+      if (!players[myId].alive) {
+        document.getElementById('status').innerText = 'คุณถูกยิงแล้ว! กดออกจากห้องเพื่อเริ่มใหม่';
+      } else {
+        document.getElementById('status').innerText = '';
+      }
+    }
 
     // วาดเกม
     const canvas = document.getElementById('canvas');
@@ -42,13 +67,20 @@
     function draw() {
       ctx.clearRect(0,0,600,400);
       Object.entries(players).forEach(([id, p]) => {
-        ctx.fillStyle = p.alive ? (id === socket.id ? 'lime' : 'cyan') : 'gray';
+        ctx.save();
+        ctx.globalAlpha = p.alive ? 1 : 0.3;
+        ctx.fillStyle = id === myId ? '#4caf50' : '#03a9f4';
         ctx.beginPath();
         ctx.arc(p.x, p.y, 15, 0, Math.PI*2);
         ctx.fill();
-        ctx.fillStyle = 'white';
-        ctx.font = '12px sans-serif';
-        ctx.fillText(p.username, p.x-15, p.y-20);
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.fillStyle = '#fff';
+        ctx.font = '13px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(p.username, p.x, p.y - 22);
+        ctx.restore();
       });
       requestAnimationFrame(draw);
     }
@@ -56,14 +88,14 @@
 
     // ควบคุม
     document.addEventListener('keydown', e => {
-      if (!players[socket.id] || !players[socket.id].alive) return;
+      if (!players[myId] || !players[myId].alive) return;
       if (e.key === 'ArrowLeft') socket.emit('move', 'left');
       if (e.key === 'ArrowRight') socket.emit('move', 'right');
       if (e.key === 'ArrowUp') socket.emit('move', 'up');
       if (e.key === 'ArrowDown') socket.emit('move', 'down');
       if (e.code === 'Space') {
-        // ยิงไปข้างหน้าตามตำแหน่งตัวเอง (ตัวอย่าง: ยิงตรงหน้า)
-        const me = players[socket.id];
+        // ยิงไปข้างหน้า (ขึ้น)
+        const me = players[myId];
         socket.emit('shoot', { x: me.x, y: me.y - 20 });
       }
     });
