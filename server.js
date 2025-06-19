@@ -69,3 +69,32 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log('Server running on http://localhost:' + PORT);
 });
+
+function draw() {
+  ctx.clearRect(0,0,600,400);
+  Object.entries(players).forEach(([id, p]) => {
+    ctx.save();
+    ctx.globalAlpha = p.alive ? 1 : 0.3;
+    ctx.fillStyle = id === myId ? '#4caf50' : '#03a9f4';
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 15, 0, Math.PI*2);
+    ctx.fill();
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // วาด hitbox ขอบแดง (รัศมี 25)
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 25, 0, Math.PI*2);
+    ctx.strokeStyle = 'red';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.fillStyle = '#fff';
+    ctx.font = '13px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(p.username, p.x, p.y - 22);
+    ctx.restore();
+  });
+  requestAnimationFrame(draw);
+}
