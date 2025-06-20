@@ -57,6 +57,16 @@ io.on('connection', (socket) => {
     io.to(socket.room).emit('players', rooms[socket.room]);
   });
 
+  socket.on('respawn', () => {
+    const player = rooms[socket.room]?.[socket.id];
+    if (player && !player.alive) {
+      player.x = Math.random() * 500 + 50;
+      player.y = Math.random() * 300 + 50;
+      player.alive = true;
+      io.to(socket.room).emit('players', rooms[socket.room]);
+    }
+  });
+
   socket.on('disconnect', () => {
     if (rooms[socket.room]) {
       delete rooms[socket.room][socket.id];

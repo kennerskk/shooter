@@ -61,6 +61,7 @@
     <div>กดลูกศรเพื่อเดิน, Spacebar เพื่อยิง</div>
     <div id="status"></div>
     <button onclick="location.reload()">ออกจากห้อง</button>
+    <button id="respawnBtn" style="display:none;" onclick="respawn()">Respawn</button>
     <div id="playersList">
       <h4>ผู้เล่นในห้อง:</h4>
       <ul id="players"></ul>
@@ -98,9 +99,11 @@
     function updateStatus() {
       if (!players[myId]) return;
       if (!players[myId].alive) {
-        document.getElementById('status').innerText = 'คุณถูกยิงแล้ว! กดออกจากห้องเพื่อเริ่มใหม่';
+        document.getElementById('status').innerText = 'คุณถูกยิงแล้ว! กด Respawn เพื่อเกิดใหม่';
+        document.getElementById('respawnBtn').style.display = '';
       } else {
         document.getElementById('status').innerText = '';
+        document.getElementById('respawnBtn').style.display = 'none';
       }
     }
 
@@ -167,6 +170,16 @@
         const me = players[myId];
         socket.emit('shoot', { x: me.x, y: me.y - 20 });
       }
+    });
+
+    function respawn() {
+      socket.emit('respawn');
+      document.getElementById('respawnBtn').style.display = 'none';
+    }
+
+    socket.on('playerRespawned', player => {
+      players[player.id] = player;
+      updateStatus();
     });
   </script>
 </body>
