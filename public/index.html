@@ -92,6 +92,7 @@
       players = data;
       myId = socket.id;
       updateStatus();
+      updatePlayersList(); // เพิ่มบรรทัดนี้
     });
 
     function updateStatus() {
@@ -101,6 +102,16 @@
       } else {
         document.getElementById('status').innerText = '';
       }
+    }
+
+    function updatePlayersList() {
+      const ul = document.getElementById('players');
+      ul.innerHTML = '';
+      Object.values(players).forEach(p => {
+        const li = document.createElement('li');
+        li.textContent = `${p.username} (${p.score ?? 0})`;
+        ul.appendChild(li);
+      });
     }
 
     // วาดเกม
